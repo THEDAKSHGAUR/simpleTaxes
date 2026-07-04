@@ -17,14 +17,16 @@ export interface TaxResult {
   effectiveRate: number;
 }
 
-// New Regime Tax Slabs (FY 2024-25)
+// New Regime Tax Slabs (FY 2025-26)
+//0-4L:0%, 4-8L:5%, 8-12L:10%, 12-16L:15%, 16-20L:20%, 20-24L:25%, >24L:30%
 export const NEW_REGIME_SLABS: TaxSlab[] = [
-  { min: 0, max: 300000, rate: 0 },
-  { min: 300000, max: 700000, rate: 5 },
-  { min: 700000, max: 1000000, rate: 10 },
-  { min: 1000000, max: 1200000, rate: 15 },
-  { min: 1200000, max: 1500000, rate: 20 },
-  { min: 1500000, max: null, rate: 30 },
+  { min: 0, max: 400000, rate: 0 },
+  { min: 400000, max: 800000, rate: 5 },
+  { min: 800000, max: 1200000, rate: 10 },
+  { min: 1200000, max: 1600000, rate: 15 },
+  { min: 1600000, max: 2000000, rate: 20 },
+  { min: 2000000, max: null, rate: 30 },
+  { min: 2400000, max: null, rate: 30 },
 ];
 
 // Old Regime Tax Slabs (FY 2024-25)
@@ -41,7 +43,10 @@ export interface DeductionSection {
   maxLimit: number | null;
   description: string;
 }
-
+export const STANDARD_DEDUCTION = {
+  new: 75000,
+  old: 50000,
+};
 export const DEDUCTION_SECTIONS: DeductionSection[] = [
   {
     section: '80C',
@@ -154,42 +159,49 @@ export function calculateHRAExemption(details: HRAExemption): number {
 export function calculateTax(
   income: number,
   deductions: number,
-  regime: 'new' | 'old' = 'new'
+  regime: 'new' | 'old' = 'new',
+  isSalaried: boolean = true
 ): TaxResult {
   const slabs = regime === 'new' ? NEW_REGIME_SLABS : OLD_REGIME_SLABS;
-  const taxableIncome = Math.max(0, income - deductions);
-  
+
+  const standardDeduction = isSalaried ? STANDARD_DEDUCTION[regime] : 0;
+  const otherDeductions = regime === 'old' ? deductions : 0;
+  const totalDeductions = standardDeduction + otherDeductions;
+
+  const taxableIncome = Math.max(0, income - totalDeductions);
+
   let tax = 0;
   let remainingIncome = taxableIncome;
-  
+
   for (const slab of slabs) {
     if (remainingIncome <= 0) break;
-    
     const slabMax = slab.max || Infinity;
     const taxableInSlab = Math.min(remainingIncome, slabMax - slab.min);
-    
     if (taxableInSlab > 0) {
       tax += (taxableInSlab * slab.rate) / 100;
       remainingIncome -= taxableInSlab;
     }
   }
-  
-  // Rebate u/s 87A (only for new regime)
-  if (regime === 'new' && taxableIncome <= 700000) {
-    tax = 0;
+
+  if (regime === 'new') {
+    const REBATE_THRESHOLD = 1200000;
+    if (taxableIncome <= REBATE_THRESHOLD) {
+      tax = 0;
+    } else {
+      const excessIncome = taxableIncome - REBATE_THRESHOLD;
+      if (tax > excessIncome) tax = excessIncome;
+    }
   } else if (regime === 'old' && taxableIncome <= 500000) {
     tax = Math.max(0, tax - 12500);
   }
-  
-  // Health and Education Cess (4%)
+
   const cess = tax * 0.04;
   const totalTax = tax + cess;
-  
   const effectiveRate = income > 0 ? (totalTax / income) * 100 : 0;
-  
+
   return {
     grossIncome: income,
-    totalDeductions: deductions,
+    totalDeductions,
     taxableIncome,
     taxBeforeCess: tax,
     healthAndEducationCess: cess,

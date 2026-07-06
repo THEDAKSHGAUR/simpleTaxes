@@ -71,7 +71,7 @@ export const DEDUCTION_SECTIONS: DeductionSection[] = [
     name: 'Section 80CCD(1B)',
     maxLimit: 50000,
     description: 'Additional contribution to NPS (over and above 80C limit)',
-  },
+  }, 
   {
     section: '80D',
     name: 'Section 80D',

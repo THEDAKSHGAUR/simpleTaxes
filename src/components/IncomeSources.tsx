@@ -1,18 +1,13 @@
 import { useState } from 'react';
 import { Plus, Trash2, Briefcase, TrendingUp, Building2, Landmark, Wallet } from 'lucide-react';
-
-export interface IncomeSource {
-  id: string;
-  type: 'salary' | 'business' | 'rental' | 'interest' | 'capital_gains' | 'other';
-  name: string;
-  amount: number;
-  details?: any;
-}
+import { useTaxData, IncomeSourceData } from '../contexts/TaxDataContext';
 
 export default function IncomeSources() {
-  const [incomeSources, setIncomeSources] = useState<IncomeSource[]>([]);
+  const { taxData, updateTaxData, saving } = useTaxData();
+  const incomeSources = taxData.income_sources;
+
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newSource, setNewSource] = useState<Partial<IncomeSource>>({
+  const [newSource, setNewSource] = useState<Partial<IncomeSourceData>>({
     type: 'salary',
     name: '',
     amount: 0,
@@ -29,21 +24,21 @@ export default function IncomeSources() {
 
   const addIncomeSource = () => {
     if (newSource.name && newSource.amount && newSource.amount > 0) {
-      const source: IncomeSource = {
+      const source: IncomeSourceData = {
         id: Date.now().toString(),
-        type: newSource.type as IncomeSource['type'],
+        type: newSource.type as IncomeSourceData['type'],
         name: newSource.name,
         amount: newSource.amount,
         details: newSource.details,
       };
-      setIncomeSources([...incomeSources, source]);
+      updateTaxData({ income_sources: [...incomeSources, source] });
       setNewSource({ type: 'salary', name: '', amount: 0 });
       setShowAddForm(false);
     }
   };
 
   const removeIncomeSource = (id: string) => {
-    setIncomeSources(incomeSources.filter(source => source.id !== id));
+    updateTaxData({ income_sources: incomeSources.filter((source) => source.id !== id) });
   };
 
   const totalIncome = incomeSources.reduce((sum, source) => sum + source.amount, 0);
@@ -52,13 +47,16 @@ export default function IncomeSources() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-3xl font-bold text-gray-800">Income Sources</h2>
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Add Income</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {saving && <span className="text-xs text-gray-400">Saving...</span>}
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Add Income</span>
+          </button>
+        </div>
       </div>
 
       {/* Total Income Summary */}
@@ -77,7 +75,7 @@ export default function IncomeSources() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Income Type</label>
               <select
                 value={newSource.type}
-                onChange={(e) => setNewSource({ ...newSource, type: e.target.value as IncomeSource['type'] })}
+                onChange={(e) => setNewSource({ ...newSource, type: e.target.value as IncomeSourceData['type'] })}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               >
                 {incomeTypes.map(type => (

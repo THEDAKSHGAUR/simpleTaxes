@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Lightbulb, TrendingUp, Target, CheckCircle } from 'lucide-react';
 import { formatCurrency, compareRegimes } from '../lib/tax-utils';
+import { useTaxData } from '../contexts/TaxDataContext';
 
 interface OptimizationTip {
   id: string;
@@ -13,12 +14,21 @@ interface OptimizationTip {
 }
 
 export default function TaxOptimization() {
-  const [income, setIncome] = useState(0);
-  const [deductions, setDeductions] = useState(0);
+  const { taxData } = useTaxData();
+  const initialIncome = taxData.income_sources.reduce((sum, s) => sum + s.amount, 0);
+  const initialDeductions = taxData.deductions.reduce((sum, d) => sum + d.amount, 0);
+
+  const [income, setIncome] = useState(initialIncome);
+  const [deductions, setDeductions] = useState(initialDeductions);
   const [age, setAge] = useState(30);
   const [hasHealthInsurance, setHasHealthInsurance] = useState(false);
   const [hasHomeLoan, setHasHomeLoan] = useState(false);
   const [livingInRentedHouse, setLivingInRentedHouse] = useState(false);
+
+  // This tool respects your actual saved regime — most Chapter VI-A deductions
+  // (80C, 80D, NPS 80CCD(1B), home loan interest, HRA exemption) are legally
+  // disallowed under the New Regime, so those tips only make sense under Old Regime.
+  const regime = taxData.regime;
 
   const [recommendations, setRecommendations] = useState<OptimizationTip[]>([]);
 
@@ -43,24 +53,26 @@ export default function TaxOptimization() {
       });
     }
 
-    // Section 80C recommendations
-    const current80C = deductions; // Simplified for demo
-    if (current80C < 150000) {
-      const remaining = 150000 - current80C;
-      const taxSaved = remaining * 0.3; // Assuming 30% bracket
-      tips.push({
-        id: '80c',
-        category: 'deduction',
-        title: 'Maximize Section 80C Deductions',
-        description: `You can still invest ₹${remaining.toLocaleString('en-IN')} under Section 80C to reduce taxable income.`,
-        potentialSavings: taxSaved,
-        priority: 'high',
-        actionRequired: 'Invest in PPF, ELSS, EPF, LIC, or tuition fees',
-      });
+    // Section 80C recommendations — only valid under Old Regime
+    if (regime === 'old') {
+      const current80C = deductions; // Simplified for demo
+      if (current80C < 150000) {
+        const remaining = 150000 - current80C;
+        const taxSaved = remaining * 0.3; // Assuming 30% bracket
+        tips.push({
+          id: '80c',
+          category: 'deduction',
+          title: 'Maximize Section 80C Deductions',
+          description: `You can still invest ₹${remaining.toLocaleString('en-IN')} under Section 80C to reduce taxable income.`,
+          potentialSavings: taxSaved,
+          priority: 'high',
+          actionRequired: 'Invest in PPF, ELSS, EPF, LIC, or tuition fees',
+        });
+      }
     }
 
-    // Health insurance recommendation
-    if (!hasHealthInsurance) {
+    // Health insurance recommendation — 80D only valid under Old Regime
+    if (regime === 'old' && !hasHealthInsurance) {
       tips.push({
         id: 'health',
         category: 'deduction',
@@ -72,19 +84,21 @@ export default function TaxOptimization() {
       });
     }
 
-    // NPS recommendation
-    tips.push({
-      id: 'nps',
-      category: 'investment',
-      title: 'Invest in NPS (Section 80CCD(1B))',
-      description: 'Additional ₹50,000 deduction available for NPS contributions over and above Section 80C limit.',
-      potentialSavings: 15000,
-      priority: 'medium',
-      actionRequired: 'Open NPS account and contribute ₹50,000',
-    });
+    // NPS recommendation — 80CCD(1B) only valid under Old Regime
+    if (regime === 'old') {
+      tips.push({
+        id: 'nps',
+        category: 'investment',
+        title: 'Invest in NPS (Section 80CCD(1B))',
+        description: 'Additional ₹50,000 deduction available for NPS contributions over and above Section 80C limit.',
+        potentialSavings: 15000,
+        priority: 'medium',
+        actionRequired: 'Open NPS account and contribute ₹50,000',
+      });
+    }
 
-    // HRA recommendation
-    if (livingInRentedHouse && income > 500000) {
+    // HRA recommendation — Section 10(13A) exemption only valid under Old Regime
+    if (regime === 'old' && livingInRentedHouse && income > 500000) {
       tips.push({
         id: 'hra',
         category: 'exemption',
@@ -96,8 +110,8 @@ export default function TaxOptimization() {
       });
     }
 
-    // Home loan recommendation
-    if (hasHomeLoan) {
+    // Home loan recommendation — Section 24(b) only valid under Old Regime
+    if (regime === 'old' && hasHomeLoan) {
       tips.push({
         id: 'homeloan',
         category: 'deduction',
@@ -109,13 +123,14 @@ export default function TaxOptimization() {
       });
     }
 
-    // Standard deduction reminder
+    // Standard deduction reminder — amount differs by regime, ₹75,000 (new) / ₹50,000 (old)
+    const standardDeductionAmount = regime === 'new' ? 75000 : 50000;
     tips.push({
       id: 'standard',
       category: 'deduction',
       title: 'Claim Standard Deduction',
-      description: 'Salaried individuals can claim standard deduction of ₹50,000 from gross salary.',
-      potentialSavings: 15000,
+      description: `Salaried individuals can claim a standard deduction of ₹${standardDeductionAmount.toLocaleString('en-IN')} from gross salary under the ${regime === 'new' ? 'New' : 'Old'} Regime.`,
+      potentialSavings: Math.round(standardDeductionAmount * 0.3),
       priority: 'high',
       actionRequired: 'Ensure standard deduction is claimed in Form 16',
     });
@@ -155,7 +170,12 @@ export default function TaxOptimization() {
 
       {/* Input Section */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Your Financial Profile</h3>
+        <h3 className="text-lg font-semibold text-gray-800 mb-1">Your Financial Profile</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Income and deductions are prefilled from your saved data. Recommendations are based on your current{' '}
+          <span className="font-medium">{regime === 'new' ? 'New' : 'Old'} Regime</span> selection — deduction-based tips
+          only apply under the Old Regime.
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Annual Income (₹)</label>

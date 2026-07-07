@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FileText, CheckCircle, AlertCircle, ArrowRight, Info } from 'lucide-react';
+import { useTaxData } from '../contexts/TaxDataContext';
 
 interface ITRForm {
   id: string;
@@ -117,6 +118,7 @@ const ITR_FORMS: ITRForm[] = [
 ];
 
 export default function ITRFiling() {
+  const { taxData, profile, updateTaxData } = useTaxData();
   const [selectedForm, setSelectedForm] = useState<string>('');
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
@@ -125,9 +127,26 @@ export default function ITRFiling() {
     name: '',
     dob: '',
     address: '',
-    income: 0,
-    deductions: 0,
   });
+
+  // Real income/deductions come from the Income Sources & Deductions tabs — no re-entry here.
+  const totalIncome = taxData.income_sources.reduce((sum, s) => sum + s.amount, 0);
+  const totalDeductions = taxData.deductions.reduce((sum, d) => sum + d.amount, 0);
+
+  // Prefill personal info from the saved profile once, without overwriting anything the user has typed.
+  useEffect(() => {
+    if (!profile) return;
+    setFormData((prev) => ({
+      ...prev,
+      pan: prev.pan || profile.pan || '',
+      name: prev.name || profile.full_name || '',
+      dob: prev.dob || profile.date_of_birth || '',
+      address:
+        prev.address ||
+        [profile.address, profile.city, profile.state, profile.pincode].filter(Boolean).join(', '),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
 
   const steps = ['Select ITR Form', 'Personal Information', 'Income Details', 'Review & Submit'];
 
@@ -136,6 +155,13 @@ export default function ITRFiling() {
   const handleFormSelect = (formId: string) => {
     setSelectedForm(formId);
     setCurrentStep(1);
+    if (taxData.itr_status === 'not_filed') {
+      updateTaxData({ itr_status: 'in_progress' });
+    }
+  };
+
+  const handleMarkAsFiled = () => {
+    updateTaxData({ itr_status: 'filed' });
   };
 
   const nextStep = () => {
@@ -149,7 +175,6 @@ export default function ITRFiling() {
       setCurrentStep(currentStep - 1);
     }
   };
-
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold text-gray-800">ITR Filing</h2>
@@ -192,8 +217,17 @@ export default function ITRFiling() {
       {/* Step Content */}
       {currentStep === 0 && <FormSelection onSelect={handleFormSelect} />}
       {currentStep === 1 && <PersonalInfo formData={formData} setFormData={setFormData} />}
-      {currentStep === 2 && <IncomeDetails formData={formData} setFormData={setFormData} />}
-      {currentStep === 3 && selectedITR && <ReviewSubmit formData={formData} itrForm={selectedITR} />}
+      {currentStep === 2 && <IncomeDetails totalIncome={totalIncome} totalDeductions={totalDeductions} />}
+      {currentStep === 3 && selectedITR && (
+        <ReviewSubmit
+          formData={formData}
+          itrForm={selectedITR}
+          totalIncome={totalIncome}
+          totalDeductions={totalDeductions}
+          itrStatus={taxData.itr_status}
+          onMarkAsFiled={handleMarkAsFiled}
+        />
+      )}
 
       {/* Navigation Buttons */}
       {currentStep > 0 && currentStep < 3 && (
@@ -319,30 +353,26 @@ function PersonalInfo({ formData, setFormData }: any) {
   );
 }
 
-function IncomeDetails({ formData, setFormData }: any) {
+function IncomeDetails({ totalIncome, totalDeductions }: { totalIncome: number; totalDeductions: number }) {
+  const taxableIncome = Math.max(0, totalIncome - totalDeductions);
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h3 className="text-lg font-semibold text-gray-800 mb-4">Income Details</h3>
+      <p className="text-sm text-gray-500 mb-4">
+        These figures are pulled automatically from your Income Sources and Deductions tabs. To change them, edit those tabs directly.
+      </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Gross Income (₹)</label>
-          <input
-            type="number"
-            value={formData.income || ''}
-            onChange={(e) => setFormData({ ...formData, income: parseFloat(e.target.value) || 0 })}
-            placeholder="Total income from all sources"
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
+          <p className="w-full border border-gray-200 bg-gray-50 rounded-lg px-4 py-3 text-gray-800">
+            ₹{totalIncome.toLocaleString('en-IN')}
+          </p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Total Deductions (₹)</label>
-          <input
-            type="number"
-            value={formData.deductions || ''}
-            onChange={(e) => setFormData({ ...formData, deductions: parseFloat(e.target.value) || 0 })}
-            placeholder="Total deductions claimed"
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
+          <p className="w-full border border-gray-200 bg-gray-50 rounded-lg px-4 py-3 text-gray-800">
+            ₹{totalDeductions.toLocaleString('en-IN')}
+          </p>
         </div>
       </div>
 
@@ -350,7 +380,7 @@ function IncomeDetails({ formData, setFormData }: any) {
         <div className="flex justify-between items-center">
           <span className="text-gray-600">Taxable Income</span>
           <span className="text-xl font-bold text-gray-800">
-            ₹{((formData.income || 0) - (formData.deductions || 0)).toLocaleString('en-IN')}
+            ₹{taxableIncome.toLocaleString('en-IN')}
           </span>
         </div>
       </div>
@@ -358,7 +388,22 @@ function IncomeDetails({ formData, setFormData }: any) {
   );
 }
 
-function ReviewSubmit({ formData, itrForm }: { formData: any; itrForm: ITRForm }) {
+function ReviewSubmit({
+  formData,
+  itrForm,
+  totalIncome,
+  totalDeductions,
+  itrStatus,
+  onMarkAsFiled,
+}: {
+  formData: any;
+  itrForm: ITRForm;
+  totalIncome: number;
+  totalDeductions: number;
+  itrStatus: string;
+  onMarkAsFiled: () => void;
+}) {
+  const taxableIncome = Math.max(0, totalIncome - totalDeductions);
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -387,11 +432,11 @@ function ReviewSubmit({ formData, itrForm }: { formData: any; itrForm: ITRForm }
             <h4 className="font-medium text-gray-800 mb-2">Income Summary</h4>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <span className="text-gray-600">Gross Income:</span>
-              <span className="text-gray-800">₹{(formData.income || 0).toLocaleString('en-IN')}</span>
+              <span className="text-gray-800">₹{totalIncome.toLocaleString('en-IN')}</span>
               <span className="text-gray-600">Deductions:</span>
-              <span className="text-gray-800">₹{(formData.deductions || 0).toLocaleString('en-IN')}</span>
+              <span className="text-gray-800">₹{totalDeductions.toLocaleString('en-IN')}</span>
               <span className="text-gray-600 font-medium">Taxable Income:</span>
-              <span className="text-gray-800 font-semibold">₹{((formData.income || 0) - (formData.deductions || 0)).toLocaleString('en-IN')}</span>
+              <span className="text-gray-800 font-semibold">₹{taxableIncome.toLocaleString('en-IN')}</span>
             </div>
           </div>
 
@@ -424,9 +469,33 @@ function ReviewSubmit({ formData, itrForm }: { formData: any; itrForm: ITRForm }
         </div>
       </div>
 
-      <button className="w-full bg-green-600 text-white px-6 py-4 rounded-lg hover:bg-green-700 transition-colors font-medium text-lg">
-        Submit ITR
-      </button>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start">
+          <Info className="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+          <div className="text-sm text-blue-800">
+            <p className="font-medium mb-1">SimpleTaxes does not file your return with the government</p>
+            <p>
+              You still need to submit your ITR yourself on the official Income Tax e-filing portal
+              (incometax.gov.in). The button below only updates your status inside SimpleTaxes, as a
+              personal tracker — it is not a government submission.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {itrStatus === 'filed' ? (
+        <div className="w-full bg-green-50 border border-green-200 text-green-800 px-6 py-4 rounded-lg font-medium text-lg text-center flex items-center justify-center">
+          <CheckCircle className="w-5 h-5 mr-2" />
+          Marked as Filed
+        </div>
+      ) : (
+        <button
+          onClick={onMarkAsFiled}
+          className="w-full bg-green-600 text-white px-6 py-4 rounded-lg hover:bg-green-700 transition-colors font-medium text-lg"
+        >
+          I've Filed This Myself — Mark as Filed
+        </button>
+      )}
     </div>
   );
 }

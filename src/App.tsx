@@ -12,13 +12,16 @@ import Login from './components/Login'
 import UserProfile from './components/UserProfile'
 import { TaxDataProvider, useTaxData } from './contexts/TaxDataContext'
 import { supabase } from './lib/supabase'
-import { calculateTax } from './lib/tax-utils'
+import { calculateTax, calculateCapitalGainsTax, getSlabTaxableCapitalGains } from './lib/tax-utils'
+import Footer from './components/Footer'
+import LegalModal from './components/LegalModal'
 
 function AppContent() {
-  const { session, profile, loading } = useTaxData()
+  const { session, profile, loading, saveError, clearSaveError } = useTaxData()
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('activeTab') || 'dashboard'
   })
+  const [legalModal, setLegalModal] = useState<'privacy' | 'terms' | null>(null)
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab)
@@ -96,6 +99,21 @@ function AppContent() {
         </div>
       </header>
 
+      {/* Save error banner */}
+      {saveError && (
+        <div className="max-w-7xl mx-auto px-4 pt-4">
+          <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 flex items-center justify-between">
+            <span className="text-sm">{saveError}</span>
+            <button
+              onClick={clearSaveError}
+              className="text-red-600 hover:text-red-800 text-sm font-medium ml-4"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4">
@@ -141,6 +159,15 @@ function AppContent() {
         {activeTab === 'itr' && <ITRFiling />}
         {activeTab === 'profile' && <UserProfile />}
       </main>
+
+      <Footer
+        onOpenPrivacy={() => setLegalModal('privacy')}
+        onOpenTerms={() => setLegalModal('terms')}
+      />
+
+      {legalModal && (
+        <LegalModal type={legalModal} onClose={() => setLegalModal(null)} />
+      )}
     </div>
   )
 }
@@ -151,9 +178,16 @@ function Dashboard() {
   const totalIncome = taxData.income_sources.reduce((sum, s) => sum + s.amount, 0)
   const otherDeductions = taxData.deductions.reduce((sum, d) => sum + d.amount, 0)
 
-  const result = calculateTax(totalIncome, otherDeductions, taxData.regime, taxData.is_salaried)
-  const withoutDeductions = calculateTax(totalIncome, 0, taxData.regime, false)
-  const taxSaved = Math.max(0, withoutDeductions.totalTax - result.totalTax)
+  // Debt STCG is legally taxed at your income slab rate, so it's added to slab-taxable
+  // income rather than the flat-rate capital gains calculation below.
+  const slabTaxableGains = getSlabTaxableCapitalGains(taxData.capital_gains)
+  const flatCapitalGainsTax = calculateCapitalGainsTax(taxData.capital_gains)
+  const incomeForSlabCalc = totalIncome + slabTaxableGains
+
+  const result = calculateTax(incomeForSlabCalc, otherDeductions, taxData.regime, taxData.is_salaried)
+  const withoutDeductions = calculateTax(incomeForSlabCalc, 0, taxData.regime, false)
+  const totalEstimatedTax = result.totalTax + flatCapitalGainsTax
+  const taxSaved = Math.max(0, (withoutDeductions.totalTax + flatCapitalGainsTax) - totalEstimatedTax)
 
   const formatCurrency = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
 
@@ -205,7 +239,7 @@ function Dashboard() {
         <StatCard
           icon={Calculator}
           title="Estimated Tax"
-          value={formatCurrency(result.totalTax)}
+          value={formatCurrency(totalEstimatedTax)}
           description={`${taxData.regime === 'new' ? 'New' : 'Old'} Regime`}
           color="red"
         />

@@ -76,6 +76,8 @@ interface TaxDataContextValue {
   taxData: TaxData;
   loading: boolean;
   saving: boolean;
+  saveError: string | null;
+  clearSaveError: () => void;
   updateTaxData: (patch: Partial<TaxData>) => Promise<void>;
   updateProfile: (patch: Partial<Profile>) => Promise<void>;
 }
@@ -88,6 +90,7 @@ export function TaxDataProvider({ children }: { children: ReactNode }) {
   const [taxData, setTaxData] = useState<TaxData>(emptyTaxData);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Watch auth state
   useEffect(() => {
@@ -168,6 +171,7 @@ export function TaxDataProvider({ children }: { children: ReactNode }) {
   const updateTaxData = useCallback(
     async (patch: Partial<TaxData>) => {
       if (!session?.user) return;
+      const previous = taxData;
       const merged = { ...taxData, ...patch };
       setTaxData(merged);
       setSaving(true);
@@ -177,6 +181,10 @@ export function TaxDataProvider({ children }: { children: ReactNode }) {
       setSaving(false);
       if (error) {
         console.error('Failed to save tax data:', error.message);
+        setTaxData(previous);
+        setSaveError("Your change couldn't be saved. Please check your connection and try again.");
+      } else {
+        setSaveError(null);
       }
     },
     [session, taxData]
@@ -185,6 +193,7 @@ export function TaxDataProvider({ children }: { children: ReactNode }) {
   const updateProfile = useCallback(
     async (patch: Partial<Profile>) => {
       if (!session?.user) return;
+      const previous = profile;
       const merged = { ...profile, ...patch } as Profile;
       setProfile(merged);
       setSaving(true);
@@ -194,22 +203,28 @@ export function TaxDataProvider({ children }: { children: ReactNode }) {
       setSaving(false);
       if (error) {
         console.error('Failed to save profile:', error.message);
+        setProfile(previous);
+        setSaveError("Your change couldn't be saved. Please check your connection and try again.");
+      } else {
+        setSaveError(null);
       }
     },
     [session, profile]
   );
 
+  const clearSaveError = useCallback(() => setSaveError(null), []);
+
   return (
     <TaxDataContext.Provider
-      value={{ session, profile, taxData, loading, saving, updateTaxData, updateProfile }}
+      value={{ session, profile, taxData, loading, saving, saveError, clearSaveError, updateTaxData, updateProfile }}
     >
       {children}
     </TaxDataContext.Provider>
   );
 }
-
 export function useTaxData() {
   const ctx = useContext(TaxDataContext);
   if (!ctx) throw new Error('useTaxData must be used within a TaxDataProvider');
   return ctx;
+  
 }

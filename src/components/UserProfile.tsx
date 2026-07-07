@@ -1,75 +1,129 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, Mail, Phone, MapPin, CreditCard, Building2, Camera, Save, Edit2, Check, X } from 'lucide-react';
+import { useTaxData } from '../contexts/TaxDataContext';
 
-interface UserProfileData {
-  name: string;
+interface FormState {
+  full_name: string;
   email: string;
   phone: string;
   pan: string;
-  aadhaar: string;
-  dateOfBirth: string;
+  aadhaarInput: string; // full value while typing; only last 4 digits are ever saved
+  date_of_birth: string;
   gender: 'male' | 'female' | 'other';
   address: string;
   city: string;
   state: string;
   pincode: string;
-  preferredRegime: 'new' | 'old';
-  bankName: string;
-  accountNumber: string;
-  ifscCode: string;
-  profilePhoto: string | null;
+  preferred_regime: 'new' | 'old';
+  bank_name: string;
+  accountInput: string; // full value while typing; only last 4 digits are ever saved
+  ifsc_code: string;
+  profile_photo_url: string | null;
 }
 
-interface UserProfileProps {
-  onProfileUpdate?: (user: { email: string; name: string; profilePhoto?: string }) => void;
-}
+const blankForm: FormState = {
+  full_name: '',
+  email: '',
+  phone: '',
+  pan: '',
+  aadhaarInput: '',
+  date_of_birth: '',
+  gender: 'male',
+  address: '',
+  city: '',
+  state: '',
+  pincode: '',
+  preferred_regime: 'new',
+  bank_name: '',
+  accountInput: '',
+  ifsc_code: '',
+  profile_photo_url: null,
+};
 
-export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
+export default function UserProfile() {
+  const { profile, updateProfile, saving } = useTaxData();
   const [isEditing, setIsEditing] = useState(false);
-  const [profileData, setProfileData] = useState<UserProfileData>({
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    phone: '+91 98765 43210',
-    pan: 'ABCDE1234F',
-    aadhaar: '****-****-1234',
-    dateOfBirth: '1990-01-15',
-    gender: 'male',
-    address: '123, Main Street',
-    city: 'Mumbai',
-    state: 'Maharashtra',
-    pincode: '400001',
-    preferredRegime: 'new',
-    bankName: 'State Bank of India',
-    accountNumber: '1234567890',
-    ifscCode: 'SBIN0001234',
-    profilePhoto: null,
-  });
+  const [tempData, setTempData] = useState<FormState>(blankForm);
 
-  const [tempData, setTempData] = useState<UserProfileData>(profileData);
-
-  const handleEdit = () => {
-    setTempData({ ...profileData });
-    setIsEditing(true);
-  };
-
-  const handleSave = () => {
-    setProfileData({ ...tempData });
-    setIsEditing(false);
-    if (onProfileUpdate) {
-      onProfileUpdate({
-        email: tempData.email,
-        name: tempData.name,
-        profilePhoto: tempData.profilePhoto || undefined,
+  // Whenever the underlying profile loads/changes and we're not mid-edit, sync the form.
+  useEffect(() => {
+    if (!isEditing) {
+      setTempData({
+        full_name: profile?.full_name || '',
+        email: profile?.email || '',
+        phone: profile?.phone || '',
+        pan: profile?.pan || '',
+        aadhaarInput: '',
+        date_of_birth: profile?.date_of_birth || '',
+        gender: profile?.gender || 'male',
+        address: profile?.address || '',
+        city: profile?.city || '',
+        state: profile?.state || '',
+        pincode: profile?.pincode || '',
+        preferred_regime: profile?.preferred_regime || 'new',
+        bank_name: profile?.bank_name || '',
+        accountInput: '',
+        ifsc_code: profile?.ifsc_code || '',
+        profile_photo_url: profile?.profile_photo_url || null,
       });
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, isEditing]);
+
+  const handleEdit = () => setIsEditing(true);
 
   const handleCancel = () => {
-    setTempData({ ...profileData });
+    setIsEditing(false);
+    setTempData({
+      full_name: profile?.full_name || '',
+      email: profile?.email || '',
+      phone: profile?.phone || '',
+      pan: profile?.pan || '',
+      aadhaarInput: '',
+      date_of_birth: profile?.date_of_birth || '',
+      gender: profile?.gender || 'male',
+      address: profile?.address || '',
+      city: profile?.city || '',
+      state: profile?.state || '',
+      pincode: profile?.pincode || '',
+      preferred_regime: profile?.preferred_regime || 'new',
+      bank_name: profile?.bank_name || '',
+      accountInput: '',
+      ifsc_code: profile?.ifsc_code || '',
+      profile_photo_url: profile?.profile_photo_url || null,
+    });
+  };
+
+  const handleSave = async () => {
+    const aadhaarLast4 = tempData.aadhaarInput
+      ? tempData.aadhaarInput.replace(/\D/g, '').slice(-4)
+      : profile?.aadhaar_last4 || undefined;
+    const accountLast4 = tempData.accountInput
+      ? tempData.accountInput.replace(/\D/g, '').slice(-4)
+      : profile?.account_last4 || undefined;
+
+    await updateProfile({
+      full_name: tempData.full_name,
+      email: tempData.email,
+      phone: tempData.phone || undefined,
+      pan: tempData.pan || undefined,
+      aadhaar_last4: aadhaarLast4,
+      date_of_birth: tempData.date_of_birth || undefined,
+      gender: tempData.gender,
+      address: tempData.address || undefined,
+      city: tempData.city || undefined,
+      state: tempData.state || undefined,
+      pincode: tempData.pincode || undefined,
+      preferred_regime: tempData.preferred_regime,
+      bank_name: tempData.bank_name || undefined,
+      account_last4: accountLast4,
+      ifsc_code: tempData.ifsc_code || undefined,
+      profile_photo_url: tempData.profile_photo_url || undefined,
+    });
     setIsEditing(false);
   };
 
-  const handleChange = (field: keyof UserProfileData, value: string) => {
+  const handleChange = (field: keyof FormState, value: string) => {
     setTempData({ ...tempData, [field]: value });
   };
 
@@ -78,56 +132,64 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setTempData({ ...tempData, profilePhoto: base64String });
+        setTempData({ ...tempData, profile_photo_url: reader.result as string });
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handleRemovePhoto = () => {
-    setTempData({ ...tempData, profilePhoto: null });
+    setTempData({ ...tempData, profile_photo_url: null });
   };
+
+  const displayName = isEditing ? tempData.full_name : profile?.full_name || 'Your Name';
+  const displayEmail = isEditing ? tempData.email : profile?.email || '';
+  const displayPan = isEditing ? tempData.pan : profile?.pan || 'Not set';
+  const displayAadhaar = profile?.aadhaar_last4 ? `••••-••••-${profile.aadhaar_last4}` : 'Not set';
+  const displayAccount = profile?.account_last4 ? `••••••••${profile.account_last4}` : 'Not set';
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-3xl font-bold text-gray-800">User Profile</h2>
-        {!isEditing ? (
-          <button
-            onClick={handleEdit}
-            className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <Edit2 className="w-4 h-4" />
-            <span>Edit Profile</span>
-          </button>
-        ) : (
-          <div className="flex space-x-3">
+        <div className="flex items-center gap-3">
+          {saving && <span className="text-xs text-gray-400">Saving...</span>}
+          {!isEditing ? (
             <button
-              onClick={handleCancel}
-              className="flex items-center space-x-2 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+              onClick={handleEdit}
+              className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
             >
-              <span>Cancel</span>
+              <Edit2 className="w-4 h-4" />
+              <span>Edit Profile</span>
             </button>
-            <button
-              onClick={handleSave}
-              className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Save className="w-4 h-4" />
-              <span>Save Changes</span>
-            </button>
-          </div>
-        )}
+          ) : (
+            <div className="flex space-x-3">
+              <button
+                onClick={handleCancel}
+                className="flex items-center space-x-2 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                <span>Cancel</span>
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                <span>Save Changes</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Profile Header */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center space-x-6">
           <div className="relative">
-            {tempData.profilePhoto ? (
+            {tempData.profile_photo_url ? (
               <div className="relative">
                 <img
-                  src={tempData.profilePhoto}
+                  src={tempData.profile_photo_url}
                   alt="Profile"
                   className="w-24 h-24 rounded-full object-cover border-4 border-indigo-200"
                 />
@@ -142,25 +204,20 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
               </div>
             ) : (
               <div className="w-24 h-24 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white text-3xl font-bold">
-                {tempData.name.charAt(0)}
+                {displayName.charAt(0).toUpperCase()}
               </div>
             )}
             {isEditing && (
               <label className="absolute bottom-0 right-0 bg-indigo-600 text-white p-2 rounded-full hover:bg-indigo-700 transition-colors cursor-pointer">
                 <Camera className="w-4 h-4" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoUpload}
-                  className="hidden"
-                />
+                <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
               </label>
             )}
           </div>
           <div>
-            <h3 className="text-2xl font-bold text-gray-800">{tempData.name}</h3>
-            <p className="text-gray-600">{tempData.email}</p>
-            <p className="text-sm text-gray-500 mt-1">PAN: {tempData.pan}</p>
+            <h3 className="text-2xl font-bold text-gray-800">{displayName}</h3>
+            <p className="text-gray-600">{displayEmail}</p>
+            <p className="text-sm text-gray-500 mt-1">PAN: {displayPan}</p>
           </div>
         </div>
       </div>
@@ -177,12 +234,12 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
             {isEditing ? (
               <input
                 type="text"
-                value={tempData.name}
-                onChange={(e) => handleChange('name', e.target.value)}
+                value={tempData.full_name}
+                onChange={(e) => handleChange('full_name', e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             ) : (
-              <p className="text-gray-800">{profileData.name}</p>
+              <p className="text-gray-800">{profile?.full_name || 'Not set'}</p>
             )}
           </div>
           <div>
@@ -197,7 +254,7 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
             ) : (
               <p className="text-gray-800 flex items-center">
                 <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                {profileData.email}
+                {profile?.email || 'Not set'}
               </p>
             )}
           </div>
@@ -213,7 +270,7 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
             ) : (
               <p className="text-gray-800 flex items-center">
                 <Phone className="w-4 h-4 mr-2 text-gray-400" />
-                {profileData.phone}
+                {profile?.phone || 'Not set'}
               </p>
             )}
           </div>
@@ -227,7 +284,7 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent uppercase"
               />
             ) : (
-              <p className="text-gray-800">{profileData.pan}</p>
+              <p className="text-gray-800">{displayPan}</p>
             )}
           </div>
           <div>
@@ -235,12 +292,16 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
             {isEditing ? (
               <input
                 type="text"
-                value={tempData.aadhaar}
-                onChange={(e) => handleChange('aadhaar', e.target.value)}
+                value={tempData.aadhaarInput}
+                onChange={(e) => handleChange('aadhaarInput', e.target.value)}
+                placeholder={profile?.aadhaar_last4 ? `Currently ending in ${profile.aadhaar_last4} — enter to change` : 'Enter Aadhaar number'}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             ) : (
-              <p className="text-gray-800">{profileData.aadhaar}</p>
+              <p className="text-gray-800">{displayAadhaar}</p>
+            )}
+            {isEditing && (
+              <p className="text-xs text-gray-400 mt-1">Only the last 4 digits are stored — the rest is never saved.</p>
             )}
           </div>
           <div>
@@ -248,12 +309,12 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
             {isEditing ? (
               <input
                 type="date"
-                value={tempData.dateOfBirth}
-                onChange={(e) => handleChange('dateOfBirth', e.target.value)}
+                value={tempData.date_of_birth}
+                onChange={(e) => handleChange('date_of_birth', e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             ) : (
-              <p className="text-gray-800">{profileData.dateOfBirth}</p>
+              <p className="text-gray-800">{profile?.date_of_birth || 'Not set'}</p>
             )}
           </div>
           <div>
@@ -269,7 +330,7 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
                 <option value="other">Other</option>
               </select>
             ) : (
-              <p className="text-gray-800 capitalize">{profileData.gender}</p>
+              <p className="text-gray-800 capitalize">{profile?.gender || 'Not set'}</p>
             )}
           </div>
         </div>
@@ -292,7 +353,7 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             ) : (
-              <p className="text-gray-800">{profileData.address}</p>
+              <p className="text-gray-800">{profile?.address || 'Not set'}</p>
             )}
           </div>
           <div>
@@ -305,7 +366,7 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             ) : (
-              <p className="text-gray-800">{profileData.city}</p>
+              <p className="text-gray-800">{profile?.city || 'Not set'}</p>
             )}
           </div>
           <div>
@@ -318,7 +379,7 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             ) : (
-              <p className="text-gray-800">{profileData.state}</p>
+              <p className="text-gray-800">{profile?.state || 'Not set'}</p>
             )}
           </div>
           <div>
@@ -331,7 +392,7 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             ) : (
-              <p className="text-gray-800">{profileData.pincode}</p>
+              <p className="text-gray-800">{profile?.pincode || 'Not set'}</p>
             )}
           </div>
         </div>
@@ -347,8 +408,8 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
           <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Tax Regime</label>
           {isEditing ? (
             <select
-              value={tempData.preferredRegime}
-              onChange={(e) => handleChange('preferredRegime', e.target.value as 'new' | 'old')}
+              value={tempData.preferred_regime}
+              onChange={(e) => handleChange('preferred_regime', e.target.value as 'new' | 'old')}
               className="w-full md:w-1/2 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             >
               <option value="new">New Regime (Lower rates, fewer deductions)</option>
@@ -357,11 +418,14 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
           ) : (
             <div className="flex items-center">
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                profileData.preferredRegime === 'new'
+                (profile?.preferred_regime || 'new') === 'new'
                   ? 'bg-green-100 text-green-800'
                   : 'bg-blue-100 text-blue-800'
               }`}>
-                {profileData.preferredRegime === 'new' ? 'New Regime' : 'Old Regime'}
+                {(profile?.preferred_regime || 'new') === 'new' ? 'New Regime' : 'Old Regime'}
+              </span>
+              <span className="text-xs text-gray-400 ml-3">
+                (This is just a saved preference — the Dashboard toggle controls the actual calculation)
               </span>
             </div>
           )}
@@ -380,12 +444,12 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
             {isEditing ? (
               <input
                 type="text"
-                value={tempData.bankName}
-                onChange={(e) => handleChange('bankName', e.target.value)}
+                value={tempData.bank_name}
+                onChange={(e) => handleChange('bank_name', e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             ) : (
-              <p className="text-gray-800">{profileData.bankName}</p>
+              <p className="text-gray-800">{profile?.bank_name || 'Not set'}</p>
             )}
           </div>
           <div>
@@ -393,12 +457,16 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
             {isEditing ? (
               <input
                 type="text"
-                value={tempData.accountNumber}
-                onChange={(e) => handleChange('accountNumber', e.target.value)}
+                value={tempData.accountInput}
+                onChange={(e) => handleChange('accountInput', e.target.value)}
+                placeholder={profile?.account_last4 ? `Currently ending in ${profile.account_last4} — enter to change` : 'Enter account number'}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             ) : (
-              <p className="text-gray-800">••••••••{profileData.accountNumber.slice(-4)}</p>
+              <p className="text-gray-800">{displayAccount}</p>
+            )}
+            {isEditing && (
+              <p className="text-xs text-gray-400 mt-1">Only the last 4 digits are stored.</p>
             )}
           </div>
           <div>
@@ -406,12 +474,12 @@ export default function UserProfile({ onProfileUpdate }: UserProfileProps) {
             {isEditing ? (
               <input
                 type="text"
-                value={tempData.ifscCode}
-                onChange={(e) => handleChange('ifscCode', e.target.value.toUpperCase())}
+                value={tempData.ifsc_code}
+                onChange={(e) => handleChange('ifsc_code', e.target.value.toUpperCase())}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent uppercase"
               />
             ) : (
-              <p className="text-gray-800">{profileData.ifscCode}</p>
+              <p className="text-gray-800">{profile?.ifsc_code || 'Not set'}</p>
             )}
           </div>
         </div>

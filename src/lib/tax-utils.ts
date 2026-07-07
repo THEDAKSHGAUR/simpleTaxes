@@ -245,31 +245,35 @@ export interface CapitalGains {
 
 export function calculateCapitalGainsTax(gains: CapitalGains[]): number {
   let totalTax = 0;
-  
+
   for (const gain of gains) {
     switch (gain.type) {
       case 'STCG':
-        // Equity STCG: 15% on gains above ₹1 lakh
-        const stcgExempt = Math.min(100000, gain.amount);
-        const stcgTaxable = gain.amount - stcgExempt;
-        totalTax += stcgTaxable * 0.15;
+        // Equity STCG: flat 20%, no exemption (Budget 2024, effective 23 July 2024)
+        totalTax += gain.amount * 0.20;
         break;
       case 'LTCG':
-        // Equity LTCG: 10% on gains above ₹1.25 lakh
+        // Equity LTCG: 12.5% on gains above ₹1.25 lakh exemption
         const ltcgExempt = Math.min(125000, gain.amount);
         const ltcgTaxable = gain.amount - ltcgExempt;
-        totalTax += ltcgTaxable * 0.10;
+        totalTax += ltcgTaxable * 0.125;
         break;
       case 'STCG_debt':
-        // Debt STCG: Taxed as per slab rates
-        totalTax += gain.amount; // Will be added to income and taxed at slab rates
+        // Debt STCG is taxed at your income slab rate, not here.
+        // See getSlabTaxableCapitalGains() for this amount.
         break;
       case 'LTCG_debt':
-        // Debt LTCG: 20% with indexation
-        totalTax += gain.amount * 0.20;
+        // Debt LTCG: flat 12.5%, no indexation (Budget 2024)
+        totalTax += gain.amount * 0.125;
         break;
     }
   }
-  
+
   return totalTax;
+}
+
+export function getSlabTaxableCapitalGains(gains: CapitalGains[]): number {
+  return gains
+    .filter((g) => g.type === 'STCG_debt')
+    .reduce((sum, g) => sum + g.amount, 0);
 }

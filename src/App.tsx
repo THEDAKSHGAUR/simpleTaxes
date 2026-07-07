@@ -15,7 +15,7 @@ import { supabase } from './lib/supabase'
 import { calculateTax } from './lib/tax-utils'
 
 function AppContent() {
-  const { session, profile, loading, updateProfile } = useTaxData()
+  const { session, profile, loading } = useTaxData()
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('activeTab') || 'dashboard'
   })
@@ -29,13 +29,13 @@ function AppContent() {
     await supabase.auth.signOut()
   }
 
-  const handleProfileUpdate = (updatedUser: { email: string; name: string; profilePhoto?: string }) => {
-    updateProfile({
-      full_name: updatedUser.name,
-      email: updatedUser.email,
-      profile_photo_url: updatedUser.profilePhoto,
-    })
-  }
+  // const handleProfileUpdate = (updatedUser: { email: string; name: string; profilePhoto?: string }) => {
+  //   updateProfile({
+  //     full_name: updatedUser.name,
+  //     email: updatedUser.email,
+  //     profile_photo_url: updatedUser.profilePhoto,
+  //   })
+  // }
 
   if (loading) {
     return (
@@ -139,11 +139,7 @@ function AppContent() {
         {activeTab === 'optimization' && <TaxOptimization />}
         {activeTab === 'investments' && <InvestmentSuggestions />}
         {activeTab === 'itr' && <ITRFiling />}
-        {activeTab === 'profile' && (
-          <UserProfile
-            onProfileUpdate={handleProfileUpdate}
-          />
-        )}
+        {activeTab === 'profile' && <UserProfile />}
       </main>
     </div>
   )

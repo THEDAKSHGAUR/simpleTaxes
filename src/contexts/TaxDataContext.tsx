@@ -35,6 +35,19 @@ export interface Profile {
   full_name: string;
   email: string;
   profile_photo_url?: string;
+  phone?: string;
+  pan?: string;
+  aadhaar_last4?: string;
+  date_of_birth?: string;
+  gender?: 'male' | 'female' | 'other';
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  preferred_regime?: 'new' | 'old';
+  bank_name?: string;
+  account_last4?: string;
+  ifsc_code?: string;
 }
 
 export interface TaxData {
@@ -116,6 +129,19 @@ export function TaxDataProvider({ children }: { children: ReactNode }) {
           full_name: profileRow.full_name || '',
           email: profileRow.email || session.user.email || '',
           profile_photo_url: profileRow.profile_photo_url || undefined,
+          phone: profileRow.phone || undefined,
+          pan: profileRow.pan || undefined,
+          aadhaar_last4: profileRow.aadhaar_last4 || undefined,
+          date_of_birth: profileRow.date_of_birth || undefined,
+          gender: profileRow.gender || undefined,
+          address: profileRow.address || undefined,
+          city: profileRow.city || undefined,
+          state: profileRow.state || undefined,
+          pincode: profileRow.pincode || undefined,
+          preferred_regime: profileRow.preferred_regime || undefined,
+          bank_name: profileRow.bank_name || undefined,
+          account_last4: profileRow.account_last4 || undefined,
+          ifsc_code: profileRow.ifsc_code || undefined,
         });
       }
 

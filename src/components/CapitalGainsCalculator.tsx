@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { TrendingUp, Plus, Trash2, Info, PieChart } from 'lucide-react';
 import { calculateCapitalGainsTax, formatCurrency, CapitalGains } from '../lib/tax-utils';
+import { useTaxData, CapitalGainEntry } from '../contexts/TaxDataContext';
 
 export default function CapitalGainsCalculator() {
-  const [gains, setGains] = useState<CapitalGains[]>([]);
+  const { taxData, updateTaxData, saving } = useTaxData();
+  const gains = taxData.capital_gains;
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [newGain, setNewGain] = useState<Partial<CapitalGains>>({
     type: 'STCG',
@@ -11,63 +14,85 @@ export default function CapitalGainsCalculator() {
   });
 
   const gainTypes = [
-    { value: 'STCG', label: 'Short-term Equity (STCG)', rate: '15%', exempt: '₹1L' },
-    { value: 'LTCG', label: 'Long-term Equity (LTCG)', rate: '10%', exempt: '₹1.25L' },
+    { value: 'STCG', label: 'Short-term Equity (STCG)', rate: '20%', exempt: 'Nil' },
+    { value: 'LTCG', label: 'Long-term Equity (LTCG)', rate: '12.5%', exempt: '₹1.25L' },
     { value: 'STCG_debt', label: 'Short-term Debt (STCG)', rate: 'Slab Rate', exempt: 'Nil' },
-    { value: 'LTCG_debt', label: 'Long-term Debt (LTCG)', rate: '20%', exempt: 'Nil' },
+    { value: 'LTCG_debt', label: 'Long-term Debt (LTCG)', rate: '12.5%', exempt: 'Nil' },
   ];
 
   const addGain = () => {
     if (newGain.type && newGain.amount && newGain.amount > 0) {
-      const gain: CapitalGains = {
-        type: newGain.type as CapitalGains['type'],
+      const entry: CapitalGainEntry = {
+        id: Date.now().toString(),
+        type: newGain.type as CapitalGainEntry['type'],
         amount: newGain.amount,
       };
-      setGains([...gains, gain]);
+      updateTaxData({ capital_gains: [...gains, entry] });
       setNewGain({ type: 'STCG', amount: 0 });
       setShowAddForm(false);
     }
   };
 
-  const removeGain = (index: number) => {
-    setGains(gains.filter((_, i) => i !== index));
+  const removeGain = (id: string) => {
+    updateTaxData({ capital_gains: gains.filter((g) => g.id !== id) });
   };
 
   const totalTax = calculateCapitalGainsTax(gains);
   const totalGains = gains.reduce((sum, g) => sum + g.amount, 0);
+  const hasDebtSTCG = gains.some((g) => g.type === 'STCG_debt');
 
   const getGainDetails = (type: CapitalGains['type']) => {
     switch (type) {
       case 'STCG':
-        return { exempt: 100000, rate: 0.15, description: 'Equity held < 1 year' };
+        return { exempt: 0, rate: 0.20, description: 'Equity held < 1 year' };
       case 'LTCG':
-        return { exempt: 125000, rate: 0.10, description: 'Equity held > 1 year' };
+        return { exempt: 125000, rate: 0.125, description: 'Equity held > 1 year' };
       case 'STCG_debt':
-        return { exempt: 0, rate: 0, description: 'Debt held < 3 years (taxed at slab rates)' };
+        return { exempt: 0, rate: 0, description: 'Debt held < 3 years (taxed at your income slab rate)' };
       case 'LTCG_debt':
-        return { exempt: 0, rate: 0.20, description: 'Debt held > 3 years (20% with indexation)' };
+        return { exempt: 0, rate: 0.125, description: 'Debt held > 3 years (12.5% flat, no indexation)' };
     }
   };
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-gray-800">Capital Gains Tax Calculator</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-3xl font-bold text-gray-800">Capital Gains Tax Calculator</h2>
+        <div className="flex items-center gap-3">
+          {saving && <span className="text-xs text-gray-400">Saving...</span>}
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Add Gain</span>
+          </button>
+        </div>
+      </div>
 
       {/* Information Card */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-start">
           <Info className="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-blue-800">
-            <p className="font-medium mb-1">Capital Gains Tax Rules</p>
+            <p className="font-medium mb-1">Capital Gains Tax Rules (post Budget 2024)</p>
             <ul className="list-disc list-inside space-y-1">
-              <li><strong>STCG (Equity):</strong> 15% on gains above ₹1 lakh (holding period {'<'} 1 year)</li>
-              <li><strong>LTCG (Equity):</strong> 10% on gains above ₹1.25 lakh (holding period {'>'} 1 year)</li>
+              <li><strong>STCG (Equity):</strong> 20% flat, no exemption (holding period {'<'} 1 year)</li>
+              <li><strong>LTCG (Equity):</strong> 12.5% on gains above ₹1.25 lakh (holding period {'>'} 1 year)</li>
               <li><strong>STCG (Debt):</strong> Taxed as per your income slab (holding period {'<'} 3 years)</li>
-              <li><strong>LTCG (Debt):</strong> 20% with indexation benefit (holding period {'>'} 3 years)</li>
+              <li><strong>LTCG (Debt):</strong> 12.5% flat, no indexation (holding period {'>'} 3 years)</li>
             </ul>
           </div>
         </div>
       </div>
+
+      {hasDebtSTCG && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+          You have Short-term Debt gains entered. These aren't taxed at a flat rate — they get added to your
+          total income and taxed at your slab rate. To see their real tax impact, add this amount as an
+          "Other" income source on the Income Sources tab; it isn't included in "Tax Liability" below.
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -91,6 +116,7 @@ export default function CapitalGainsCalculator() {
           <div className="mt-4">
             <p className="text-sm text-gray-500">Tax Liability</p>
             <p className="text-2xl font-bold text-gray-800">{formatCurrency(totalTax)}</p>
+            <p className="text-xs text-gray-500">Excludes debt-STCG (see note above)</p>
           </div>
         </div>
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -128,7 +154,7 @@ export default function CapitalGainsCalculator() {
             {newGain.type && (
               <div className="bg-gray-50 rounded-lg p-3">
                 <p className="text-sm text-gray-600">
-                  <strong>Tax Rate:</strong> {gainTypes.find(t => t.value === newGain.type)?.rate} | 
+                  <strong>Tax Rate:</strong> {gainTypes.find(t => t.value === newGain.type)?.rate} |
                   <strong> Exemption Limit:</strong> {gainTypes.find(t => t.value === newGain.type)?.exempt}
                 </p>
               </div>
@@ -187,17 +213,13 @@ export default function CapitalGainsCalculator() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {gains.map((gain, index) => {
+              {gains.map((gain) => {
                 const details = getGainDetails(gain.type);
                 const taxableAmount = Math.max(0, gain.amount - details.exempt);
-                const tax = gain.type === 'STCG_debt' 
-                  ? 0 // Will be added to income and taxed at slab
-                  : gain.type === 'LTCG_debt'
-                  ? taxableAmount * details.rate
-                  : taxableAmount * details.rate;
-                
+                const tax = taxableAmount * details.rate;
+
                 return (
-                  <tr key={index} className="hover:bg-gray-50">
+                  <tr key={gain.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-medium text-gray-900">
                         {gainTypes.find(t => t.value === gain.type)?.label}
@@ -205,7 +227,9 @@ export default function CapitalGainsCalculator() {
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm text-gray-900">{details.description}</p>
-                      <p className="text-xs text-gray-500">Exempt: {formatCurrency(details.exempt)}</p>
+                      {details.exempt > 0 && (
+                        <p className="text-xs text-gray-500">Exempt: {formatCurrency(details.exempt)}</p>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
                       {formatCurrency(gain.amount)}
@@ -215,7 +239,7 @@ export default function CapitalGainsCalculator() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <button
-                        onClick={() => removeGain(index)}
+                        onClick={() => removeGain(gain.id)}
                         className="text-red-600 hover:text-red-800"
                       >
                         <Trash2 className="w-5 h-5" />
@@ -248,7 +272,7 @@ export default function CapitalGainsCalculator() {
           </div>
           <div className="border-l-4 border-purple-500 pl-4">
             <h4 className="font-medium text-gray-800">Use Exemption Limits</h4>
-            <p className="text-sm text-gray-600">Plan sales to stay within exemption limits (₹1L for STCG, ₹1.25L for LTCG)</p>
+            <p className="text-sm text-gray-600">Plan sales to stay within exemption limits (₹1.25L for LTCG equity)</p>
           </div>
           <div className="border-l-4 border-indigo-500 pl-4">
             <h4 className="font-medium text-gray-800">Invest in Tax-Free Bonds</h4>

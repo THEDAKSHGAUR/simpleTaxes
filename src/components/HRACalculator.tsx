@@ -1,12 +1,15 @@
-import { useState } from 'react';
 import { Home, Calculator, Info } from 'lucide-react';
 import { calculateHRAExemption, formatCurrency } from '../lib/tax-utils';
+import { useTaxData } from '../contexts/TaxDataContext';
 
 export default function HRACalculator() {
-  const [hraReceived, setHraReceived] = useState(0);
-  const [rentPaid, setRentPaid] = useState(0);
-  const [basicSalary, setBasicSalary] = useState(0);
-  const [cityType, setCityType] = useState<'metro' | 'non-metro'>('metro');
+  const { taxData, updateTaxData, saving } = useTaxData();
+  const { basicSalary, hraReceived, rentPaid, isMetroCity } = taxData.hra;
+  const cityType: 'metro' | 'non-metro' = isMetroCity ? 'metro' : 'non-metro';
+
+  const updateHRA = (patch: Partial<typeof taxData.hra>) => {
+    updateTaxData({ hra: { ...taxData.hra, ...patch } });
+  };
 
   const exemption = calculateHRAExemption({
     hraReceived,
@@ -35,7 +38,10 @@ export default function HRACalculator() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-gray-800">HRA Exemption Calculator</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-3xl font-bold text-gray-800">HRA Exemption Calculator</h2>
+        {saving && <span className="text-xs text-gray-400">Saving...</span>}
+      </div>
 
       {/* Information Card */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -60,7 +66,7 @@ export default function HRACalculator() {
             <input
               type="number"
               value={basicSalary || ''}
-              onChange={(e) => setBasicSalary(parseFloat(e.target.value) || 0)}
+              onChange={(e) => updateHRA({ basicSalary: parseFloat(e.target.value) || 0 })}
               placeholder="Enter basic salary"
               className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
@@ -70,7 +76,7 @@ export default function HRACalculator() {
             <input
               type="number"
               value={hraReceived || ''}
-              onChange={(e) => setHraReceived(parseFloat(e.target.value) || 0)}
+              onChange={(e) => updateHRA({ hraReceived: parseFloat(e.target.value) || 0 })}
               placeholder="Enter HRA received"
               className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
@@ -80,7 +86,7 @@ export default function HRACalculator() {
             <input
               type="number"
               value={rentPaid || ''}
-              onChange={(e) => setRentPaid(parseFloat(e.target.value) || 0)}
+              onChange={(e) => updateHRA({ rentPaid: parseFloat(e.target.value) || 0 })}
               placeholder="Enter total rent paid"
               className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
@@ -89,7 +95,7 @@ export default function HRACalculator() {
             <label className="block text-sm font-medium text-gray-700 mb-2">City Type</label>
             <select
               value={cityType}
-              onChange={(e) => setCityType(e.target.value as 'metro' | 'non-metro')}
+              onChange={(e) => updateHRA({ isMetroCity: e.target.value === 'metro' })}
               className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             >
               <option value="metro">Metro City (50% limit)</option>
@@ -104,7 +110,7 @@ export default function HRACalculator() {
         <>
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">HRA Exemption Calculation</h3>
-            
+
             <div className="space-y-4">
               {conditions.map((condition, index) => (
                 <div key={index} className="flex items-center justify-between py-3 border-b">

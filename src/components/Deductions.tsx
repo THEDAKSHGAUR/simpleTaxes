@@ -1,17 +1,12 @@
 import { useState } from 'react';
 import { Shield, Plus, Trash2, Info } from 'lucide-react';
 import { DEDUCTION_SECTIONS, formatCurrency } from '../lib/tax-utils';
-
-export interface DeductionEntry {
-  id: string;
-  section: string;
-  name: string;
-  amount: number;
-  description: string;
-}
+import { useTaxData, DeductionEntry } from '../contexts/TaxDataContext';
 
 export default function Deductions() {
-  const [deductions, setDeductions] = useState<DeductionEntry[]>([]);
+  const { taxData, updateTaxData, saving } = useTaxData();
+  const deductions = taxData.deductions;
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [newDeduction, setNewDeduction] = useState({
@@ -33,7 +28,7 @@ export default function Deductions() {
           amount: newDeduction.amount,
           description: newDeduction.description || section.description,
         };
-        setDeductions([...deductions, entry]);
+        updateTaxData({ deductions: [...deductions, entry] });
         setNewDeduction({ name: '', amount: 0, description: '' });
         setSelectedSection('');
         setShowAddForm(false);
@@ -42,7 +37,7 @@ export default function Deductions() {
   };
 
   const removeDeduction = (id: string) => {
-    setDeductions(deductions.filter(d => d.id !== id));
+    updateTaxData({ deductions: deductions.filter(d => d.id !== id) });
   };
 
   const getSectionTotal = (section: string) => {
@@ -60,13 +55,16 @@ export default function Deductions() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-3xl font-bold text-gray-800">Deductions & Exemptions</h2>
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Add Deduction</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {saving && <span className="text-xs text-gray-400">Saving...</span>}
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Add Deduction</span>
+          </button>
+        </div>
       </div>
 
       {/* Total Deductions Summary */}

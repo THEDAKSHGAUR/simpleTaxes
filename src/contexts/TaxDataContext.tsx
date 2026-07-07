@@ -10,12 +10,12 @@ export interface IncomeSourceData {
   details?: any;
 }
 
-export interface DeductionsData {
-  section80C: number;
-  section80D: number;
-  section80CCD1B: number;
-  homeLoanInterest: number;
-  [key: string]: number;
+export interface DeductionEntry {
+  id: string;
+  section: string;
+  name: string;
+  amount: number;
+  description: string;
 }
 
 export interface HRAData {
@@ -39,7 +39,7 @@ export interface Profile {
 
 export interface TaxData {
   income_sources: IncomeSourceData[];
-  deductions: DeductionsData;
+  deductions: DeductionEntry[];
   hra: HRAData;
   capital_gains: CapitalGainEntry[];
   regime: 'new' | 'old';
@@ -49,7 +49,7 @@ export interface TaxData {
 
 const emptyTaxData: TaxData = {
   income_sources: [],
-  deductions: { section80C: 0, section80D: 0, section80CCD1B: 0, homeLoanInterest: 0 },
+  deductions: [],
   hra: { basicSalary: 0, hraReceived: 0, rentPaid: 0, isMetroCity: true },
   capital_gains: [],
   regime: 'new',
@@ -122,7 +122,7 @@ export function TaxDataProvider({ children }: { children: ReactNode }) {
       if (taxRow) {
         setTaxData({
           income_sources: taxRow.income_sources || [],
-          deductions: { ...emptyTaxData.deductions, ...(taxRow.deductions || {}) },
+          deductions: Array.isArray(taxRow.deductions) ? taxRow.deductions : [],
           hra: { ...emptyTaxData.hra, ...(taxRow.hra || {}) },
           capital_gains: taxRow.capital_gains || [],
           regime: taxRow.regime || 'new',

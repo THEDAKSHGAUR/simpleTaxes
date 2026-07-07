@@ -6,7 +6,7 @@ import TaxCalculator from './components/TaxCalculator'
 import TaxOptimization from './components/TaxOptimization'
 import ITRFiling from './components/ITRFiling'
 import InvestmentSuggestions from './components/InvestmentSuggestions'
-import HRACalculator from './components/HRACalculator' 
+import HRACalculator from './components/HRACalculator'
 import CapitalGainsCalculator from './components/CapitalGainsCalculator'
 import Login from './components/Login'
 import UserProfile from './components/UserProfile'
@@ -150,14 +150,10 @@ function AppContent() {
 }
 
 function Dashboard() {
-  const { taxData } = useTaxData()
+  const { taxData, updateTaxData } = useTaxData()
 
   const totalIncome = taxData.income_sources.reduce((sum, s) => sum + s.amount, 0)
-  const otherDeductions =
-    taxData.deductions.section80C +
-    taxData.deductions.section80D +
-    taxData.deductions.section80CCD1B +
-    taxData.deductions.homeLoanInterest
+  const otherDeductions = taxData.deductions.reduce((sum, d) => sum + d.amount, 0)
 
   const result = calculateTax(totalIncome, otherDeductions, taxData.regime, taxData.is_salaried)
   const withoutDeductions = calculateTax(totalIncome, 0, taxData.regime, false)
@@ -170,10 +166,29 @@ function Dashboard() {
     in_progress: 'In Progress',
     filed: 'Filed',
   }
+  const handleRegimeChange = (regime: 'new' | 'old') => {
+    updateTaxData({ regime })
+  }
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-gray-800">Tax Dashboard</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-3xl font-bold text-gray-800">Tax Dashboard</h2>
+        <div className="flex bg-gray-100 rounded-lg p-1">
+          <button
+            onClick={() => handleRegimeChange('new')}
+            className={`px-4 py-2 rounded-md text-sm font-medium ${taxData.regime === 'new' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600'}`}
+          >
+            New Regime
+          </button>
+          <button
+            onClick={() => handleRegimeChange('old')}
+            className={`px-4 py-2 rounded-md text-sm font-medium ${taxData.regime === 'old' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600'}`}
+          >
+            Old Regime
+          </button>
+        </div>
+      </div>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

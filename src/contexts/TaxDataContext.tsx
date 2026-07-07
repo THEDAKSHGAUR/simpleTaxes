@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
@@ -91,6 +91,8 @@ export function TaxDataProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedTaxDataRef = useRef<TaxData>(emptyTaxData);
 
   // Watch auth state
   useEffect(() => {
@@ -149,7 +151,7 @@ export function TaxDataProvider({ children }: { children: ReactNode }) {
       }
 
       if (taxRow) {
-        setTaxData({
+        const loaded: TaxData = {
           income_sources: taxRow.income_sources || [],
           deductions: Array.isArray(taxRow.deductions) ? taxRow.deductions : [],
           hra: { ...emptyTaxData.hra, ...(taxRow.hra || {}) },
@@ -157,7 +159,9 @@ export function TaxDataProvider({ children }: { children: ReactNode }) {
           regime: taxRow.regime || 'new',
           is_salaried: taxRow.is_salaried ?? true,
           itr_status: taxRow.itr_status || 'not_filed',
-        });
+        };
+        setTaxData(loaded);
+        lastSavedTaxDataRef.current = loaded;
       }
 
       setLoading(false);
@@ -171,21 +175,30 @@ export function TaxDataProvider({ children }: { children: ReactNode }) {
   const updateTaxData = useCallback(
     async (patch: Partial<TaxData>) => {
       if (!session?.user) return;
-      const previous = taxData;
       const merged = { ...taxData, ...patch };
       setTaxData(merged);
       setSaving(true);
-      const { error } = await supabase
-        .from('tax_data')
-        .upsert({ user_id: session.user.id, ...merged, updated_at: new Date().toISOString() });
-      setSaving(false);
-      if (error) {
-        console.error('Failed to save tax data:', error.message);
-        setTaxData(previous);
-        setSaveError("Your change couldn't be saved. Please check your connection and try again.");
-      } else {
-        setSaveError(null);
+
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
       }
+
+      const userId = session.user.id;
+
+      saveTimeoutRef.current = setTimeout(async () => {
+        const { error } = await supabase
+          .from('tax_data')
+          .upsert({ user_id: userId, ...merged, updated_at: new Date().toISOString() });
+        setSaving(false);
+        if (error) {
+          console.error('Failed to save tax data:', error.message);
+          setTaxData(lastSavedTaxDataRef.current);
+          setSaveError("Your change couldn't be saved. Please check your connection and try again.");
+        } else {
+          lastSavedTaxDataRef.current = merged;
+          setSaveError(null);
+        }
+      }, 800);
     },
     [session, taxData]
   );

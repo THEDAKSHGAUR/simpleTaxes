@@ -202,6 +202,8 @@ export default function CapitalGainsCalculator() {
               </button>
             </div>
           </div>
+          <div className="overflow-x-auto">
+            <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b">
@@ -250,6 +252,8 @@ export default function CapitalGainsCalculator() {
               })}
             </tbody>
           </table>
+          </div>
+          </div>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow-md p-12 text-center">
